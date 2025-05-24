@@ -10,7 +10,7 @@ class AppColors {
 }
 
 class AppStrings {
-  static const String appName = 'FoodieHub';
+  static const String appName = 'Foodie Hub';
 
   static const String email = 'Email';
   static const String password = 'Password';

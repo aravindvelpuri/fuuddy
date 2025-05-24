@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:fuuddy/config/constants.dart';
-import 'package:fuuddy/config/routes.dart';
+import 'package:foodie_hub/config/constants.dart';
+import 'package:foodie_hub/config/routes.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

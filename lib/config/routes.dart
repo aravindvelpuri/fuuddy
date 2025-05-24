@@ -1,4 +1,4 @@
-import 'package:fuuddy/screens/home_screen.dart';
+import 'package:foodie_hub/screens/home_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/signup_screen.dart';
 import '../screens/splash_screen.dart';

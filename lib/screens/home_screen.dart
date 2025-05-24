@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:fuuddy/config/constants.dart';
+import 'package:foodie_hub/config/constants.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});

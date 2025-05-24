@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fuuddy/config/constants.dart';
-import 'package:fuuddy/config/routes.dart';
-import 'package:fuuddy/widgets/auth/auth_text_field.dart';
-import 'package:fuuddy/widgets/auth/social_auth_button.dart';
+import 'package:foodie_hub/config/constants.dart';
+import 'package:foodie_hub/config/routes.dart';
+import 'package:foodie_hub/widgets/auth/auth_text_field.dart';
+import 'package:foodie_hub/widgets/auth/social_auth_button.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
