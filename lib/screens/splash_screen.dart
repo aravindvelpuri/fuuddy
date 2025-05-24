@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fuuddy/config/constants.dart';
 import 'package:fuuddy/config/routes.dart';
 
@@ -13,6 +14,7 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   void initState() {
@@ -26,11 +28,26 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
     _controller.forward();
 
-    Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacementNamed(
-        context,
-        Routes.login,
-      );
+    _checkAuthState();
+  }
+
+  Future<void> _checkAuthState() async {
+    // Wait for both animation and minimum splash time
+    await Future.delayed(const Duration(seconds: 2));
+
+    // Check if user is logged in
+    _auth.authStateChanges().listen((User? user) {
+      if (mounted) {
+        Navigator.pushReplacementNamed(
+          context,
+          user != null ? Routes.home : Routes.login,
+        );
+      }
+    }, onError: (e) {
+      // If there's an error checking auth state, go to login screen
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, Routes.login);
+      }
     });
   }
 
