@@ -181,6 +181,7 @@ class HomeScreen extends StatelessWidget {
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white, // <-- Set this explicitly
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.secondaryText,
         items: const [
