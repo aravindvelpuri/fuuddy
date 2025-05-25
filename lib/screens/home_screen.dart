@@ -21,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> savedAddresses = [];
   Position? currentPosition;
   String currentLocationAddress = '';
+  int _currentIndex = 0;
 
   // Address form controllers
   final TextEditingController _addressController = TextEditingController();
@@ -233,8 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
         isScrollControlled: true,
         backgroundColor: Colors.white,
         shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),),
     builder: (context) {
     return _buildAddressBottomSheet();
   },
@@ -252,81 +252,81 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-          Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Select Delivery Location',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            IconButton(
-              icon: Icon(Icons.close, color: AppColors.textPrimary),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        // Search field that doesn't auto-focus
-        IgnorePointer(
-          child: TextField(
-            focusNode: _searchFocusNode,
-            decoration: InputDecoration(
-              hintText: 'Search for area, street name...',
-              prefixIcon: Icon(Icons.search, color: AppColors.primary),
-              filled: true,
-              fillColor: AppColors.inputBackground,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppColors.inputBorder),
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),),
-          const SizedBox(height: 20),
-          Text(
-            'SAVED ADDRESSES',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.secondaryText,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (currentLocationAddress.isNotEmpty)
-                  _buildAddressTile(
-                    icon: Icons.my_location,
-                    title: 'Use current location',
-                    subtitle: currentLocationAddress,
+                Text(
+                  'Select Delivery Location',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, color: AppColors.textPrimary),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            IgnorePointer(
+              child: TextField(
+                focusNode: _searchFocusNode,
+                decoration: InputDecoration(
+                  hintText: 'Search for area, street name...',
+                  prefixIcon: Icon(Icons.search, color: AppColors.primary),
+                  filled: true,
+                  fillColor: AppColors.inputBackground,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppColors.inputBorder),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'SAVED ADDRESSES',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.secondaryText,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                children: [
+                  if (currentLocationAddress.isNotEmpty)
+                    _buildAddressTile(
+                      icon: Icons.my_location,
+                      title: 'Use current location',
+                      subtitle: currentLocationAddress,
+                      onTap: () {
+                        setState(() {
+                          selectedAddress = currentLocationAddress;
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ...savedAddresses.map((address) => _buildAddressTile(
+                    icon: _getAddressIcon(address['type']),
+                    title: _getAddressTitle(address['type']),
+                    subtitle: address['formattedAddress'],
+                    isDefault: address['isDefault'] == true,
                     onTap: () {
                       setState(() {
-                        selectedAddress = currentLocationAddress;
+                        selectedAddress = address['formattedAddress'];
                       });
                       Navigator.pop(context);
                     },
-                  ),
-                ...savedAddresses.map((address) => _buildAddressTile(
-                  icon: _getAddressIcon(address['type']),
-                  title: _getAddressTitle(address['type']),
-                  subtitle: address['formattedAddress'],
-                  isDefault: address['isDefault'] == true,
-                  onTap: () {
-                    setState(() {
-                      selectedAddress = address['formattedAddress'];
-                    });
-                    Navigator.pop(context);
-                  },
-                )),
-                _buildAddNewAddressTile(),
-              ],
+                  )),
+                  _buildAddNewAddressTile(),
+                ],
+              ),
             ),
-          ),
           ],
         ),
       ),
@@ -543,6 +543,172 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  int _selectedIndex = 0;
+
+  Widget _buildCustomBottomNavBar() {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        height: 80 + bottomPadding,
+        child: Stack(
+          children: [
+            // Transparent outer layer
+            Positioned(
+              left: 8,
+              right: 8,
+              bottom: bottomPadding,
+              child: Container(
+                height: 74,
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.2),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            // Main white card
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: bottomPadding,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: List.generate(4, (index) {
+                    final isActive = _selectedIndex == index;
+                    final items = [
+                      {'icon': Icons.home, 'label': 'Home'},
+                      {'icon': Icons.receipt_long, 'label': 'Orders'},
+                      {'icon': Icons.shopping_cart, 'label': 'Cart'},
+                      {'icon': Icons.person, 'label': 'Profile'},
+                    ];
+
+                    return _buildAnimatedNavItem(
+                      icon: items[index]['icon'] as IconData,
+                      label: items[index]['label'] as String,
+                      index: index,
+                      isActive: isActive,
+                      onTap: () {
+                        setState(() {
+                          _selectedIndex = index;
+                        });
+                      },
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedNavItem({
+    required IconData icon,
+    required String label,
+    required int index,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedScale(
+              scale: isActive ? 1.2 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                icon,
+                size: 24,
+                color: isActive ? AppColors.primary : Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 4),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                fontSize: 12,
+                color: isActive ? AppColors.primary : Colors.grey,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              ),
+              child: Text(label),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  // Widget _buildNavItem(IconData icon, String label, int index) {
+  //   final isSelected = _currentIndex == index;
+  //   return GestureDetector(
+  //     onTap: () {
+  //       setState(() {
+  //         _currentIndex = index;
+  //       });
+  //     },
+  //     child: Column(
+  //       mainAxisSize: MainAxisSize.min,
+  //       children: [
+  //         Icon(
+  //           icon,
+  //           size: 28,
+  //           color: isSelected ? AppColors.primary : AppColors.secondaryText,
+  //         ),
+  //         const SizedBox(height: 4),
+  //         Text(
+  //           label,
+  //           style: TextStyle(
+  //             fontSize: 12,
+  //             color: isSelected ? AppColors.primary : AppColors.secondaryText,
+  //           ),
+  //         ),
+  //         if (isSelected)
+  //           Container(
+  //             margin: const EdgeInsets.only(top: 4),
+  //             height: 3,
+  //             width: 20,
+  //             decoration: BoxDecoration(
+  //               color: AppColors.primary,
+  //               borderRadius: BorderRadius.circular(2),
+  //             ),
+  //           ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -550,6 +716,7 @@ class _HomeScreenState extends State<HomeScreen> {
       behavior: HitTestBehavior.opaque,
       child: Scaffold(
         backgroundColor: AppColors.background,
+        extendBody: true,
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -662,8 +829,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color:AppColors.primary.withAlpha((0.1 * 255).round()),
-                      borderRadius: BorderRadius.circular(12),
+                    color: AppColors.primary.withAlpha((0.1 * 255).round()),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
@@ -780,30 +947,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.secondaryText,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.receipt),
-              label: 'Orders',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_cart),
-              label: 'Cart',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: 'Profile',
-            ),
-          ],
-        ),
+        bottomNavigationBar: _buildCustomBottomNavBar(),
       ),
     );
   }
