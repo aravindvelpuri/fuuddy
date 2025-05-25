@@ -21,7 +21,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> savedAddresses = [];
   Position? currentPosition;
   String currentLocationAddress = '';
-  int _currentIndex = 0;
 
   // Address form controllers
   final TextEditingController _addressController = TextEditingController();
@@ -565,7 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: Colors.transparent,
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withAlpha((0.2 * 255).round()),
                     width: 1.5,
                   ),
                 ),
@@ -585,7 +584,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(25),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withAlpha((0.05 * 255).round()),
                       blurRadius: 20,
                       spreadRadius: 2,
                       offset: const Offset(0, 5),
@@ -638,7 +637,7 @@ class _HomeScreenState extends State<HomeScreen> {
         duration: const Duration(milliseconds: 250),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
+          color: isActive ? AppColors.primary.withAlpha((0.2 * 255).round()) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
