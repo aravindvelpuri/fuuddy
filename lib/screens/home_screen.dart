@@ -28,6 +28,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedAddressType = 'home';
   bool _isDefaultAddress = false;
 
+  // Focus nodes for keyboard management
+  final FocusNode _searchFocusNode = FocusNode();
+  final FocusNode _addressFocusNode = FocusNode();
+  final FocusNode _landmarkFocusNode = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -39,7 +44,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _addressController.dispose();
     _landmarkController.dispose();
+    _searchFocusNode.dispose();
+    _addressFocusNode.dispose();
+    _landmarkFocusNode.dispose();
     super.dispose();
+  }
+
+  // Helper method to dismiss keyboard
+  void _dismissKeyboard() {
+    FocusScope.of(context).unfocus();
   }
 
   Future<void> _getCurrentLocation() async {
@@ -134,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
           .collection('users')
           .doc(userId)
           .collection('addresses')
-          .orderBy('isDefault', descending: true) // Default addresses first
+          .orderBy('isDefault', descending: true)
           .get();
 
       List<Map<String, dynamic>> addresses = addressSnapshot.docs
@@ -174,7 +187,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // If this is being set as default, unset any existing default
       if (_isDefaultAddress) {
         await FirebaseFirestore.instance
             .collection('users')
@@ -189,7 +201,6 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
 
-      // Add the new address
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -202,7 +213,6 @@ class _HomeScreenState extends State<HomeScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // Refresh addresses
       await _fetchSavedAddresses(user.uid);
 
       Navigator.pop(context);
@@ -219,36 +229,51 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showAddressBottomSheet() {
     showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return _buildAddressBottomSheet();
-      },
+        ),
+    builder: (context) {
+    return _buildAddressBottomSheet();
+  },
     );
   }
 
   Widget _buildAddressBottomSheet() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      height: MediaQuery.of(context).size.height * 0.8,
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Select Delivery Location',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        height: MediaQuery.of(context).size.height * 0.8,
+        color: Colors.white,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Select Delivery Location',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
+            IconButton(
+              icon: Icon(Icons.close, color: AppColors.textPrimary),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Search field that doesn't auto-focus
+        IgnorePointer(
+          child: TextField(
+            focusNode: _searchFocusNode,
             decoration: InputDecoration(
               hintText: 'Search for area, street name...',
               prefixIcon: Icon(Icons.search, color: AppColors.primary),
@@ -260,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
             ),
-          ),
+          ),),
           const SizedBox(height: 20),
           Text(
             'SAVED ADDRESSES',
@@ -275,15 +300,10 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView(
               children: [
                 if (currentLocationAddress.isNotEmpty)
-                  ListTile(
-                    leading: Icon(Icons.my_location, color: AppColors.primary),
-                    title: const Text('Use current location'),
-                    subtitle: Text(
-                      currentLocationAddress,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: AppColors.secondaryText),
-                    ),
+                  _buildAddressTile(
+                    icon: Icons.my_location,
+                    title: 'Use current location',
+                    subtitle: currentLocationAddress,
                     onTap: () {
                       setState(() {
                         selectedAddress = currentLocationAddress;
@@ -291,31 +311,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pop(context);
                     },
                   ),
-                ...savedAddresses.map((address) => ListTile(
-                  leading: Icon(
-                    address['type'] == 'home'
-                        ? Icons.home
-                        : address['type'] == 'work'
-                        ? Icons.work
-                        : Icons.location_on,
-                    color: AppColors.primary,
-                  ),
-                  title: Text(
-                    address['type'] == 'home'
-                        ? 'Home'
-                        : address['type'] == 'work'
-                        ? 'Work'
-                        : 'Other',
-                  ),
-                  subtitle: Text(
-                    address['formattedAddress'],
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: AppColors.secondaryText),
-                  ),
-                  trailing: address['isDefault'] == true
-                      ? Icon(Icons.check, color: AppColors.primary)
-                      : null,
+                ...savedAddresses.map((address) => _buildAddressTile(
+                  icon: _getAddressIcon(address['type']),
+                  title: _getAddressTitle(address['type']),
+                  subtitle: address['formattedAddress'],
+                  isDefault: address['isDefault'] == true,
                   onTap: () {
                     setState(() {
                       selectedAddress = address['formattedAddress'];
@@ -323,385 +323,487 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.pop(context);
                   },
                 )),
-                ListTile(
-                  leading: Icon(Icons.add, color: AppColors.primary),
-                  title: const Text('Add new address'),
-                  onTap: _showAddAddressBottomSheet,
-                ),
+                _buildAddNewAddressTile(),
               ],
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
+  IconData _getAddressIcon(String type) {
+    switch (type) {
+      case 'home':
+        return Icons.home;
+      case 'work':
+        return Icons.work;
+      default:
+        return Icons.location_on;
+    }
+  }
+
+  String _getAddressTitle(String type) {
+    switch (type) {
+      case 'home':
+        return 'Home';
+      case 'work':
+        return 'Work';
+      default:
+        return 'Other';
+    }
+  }
+
+  Widget _buildAddressTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    bool isDefault = false,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.primary),
+      title: Text(title),
+      subtitle: Text(
+        subtitle,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: AppColors.secondaryText),
+      ),
+      trailing: isDefault
+          ? Icon(Icons.check, color: AppColors.primary)
+          : null,
+      onTap: onTap,
+    );
+  }
+
+  Widget _buildAddNewAddressTile() {
+    return ListTile(
+      leading: Icon(Icons.add, color: AppColors.primary),
+      title: const Text('Add new address'),
+      onTap: _showAddAddressBottomSheet,
+    );
+  }
+
   void _showAddAddressBottomSheet() {
-    // Clear previous inputs
     _addressController.clear();
     _landmarkController.clear();
     _selectedAddressType = 'home';
     _isDefaultAddress = false;
 
-    Navigator.pop(context); // Close the previous bottom sheet
+    Navigator.pop(context);
     showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return SingleChildScrollView(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Add New Address',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: _addressController,
-                  decoration: InputDecoration(
-                    labelText: 'Complete Address*',
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide(color: AppColors.inputBorder),
-                    ),
-                  ),
-                  maxLines: 3,
-                  autofocus: true,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _landmarkController,
-                  decoration: InputDecoration(
-                    labelText: 'Landmark (Optional)',
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide(color: AppColors.inputBorder),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _selectedAddressType,
-                  decoration: InputDecoration(
-                    labelText: 'Address Type',
-                    border: OutlineInputBorder(
-                      borderSide: BorderSide(color: AppColors.inputBorder),
-                    ),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'home', child: Text('Home Address')),
-                    DropdownMenuItem(
-                        value: 'work', child: Text('Work Address')),
-                    DropdownMenuItem(
-                        value: 'other', child: Text('Other Address')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _selectedAddressType = value;
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _isDefaultAddress,
-                      onChanged: (value) {
-                        setState(() {
-                          _isDefaultAddress = value ?? false;
-                        });
-                      },
-                      activeColor: AppColors.primary,
-                    ),
-                    Text(
-                      'Set as default address',
-                      style: TextStyle(color: AppColors.textPrimary),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(color: AppColors.primary),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: _saveAddress,
-                      child: const Text('Save Address'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),),
+    builder: (context) {
+    return GestureDetector(
+    onTap: _dismissKeyboard,
+    behavior: HitTestBehavior.opaque,
+    child: SingleChildScrollView(
+    padding: EdgeInsets.only(
+    bottom: MediaQuery.of(context).viewInsets.bottom,
+    ),
+    child: Container(
+    padding: const EdgeInsets.all(20),
+    child: Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+    Text(
+    'Add New Address',
+    style: TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.bold,
+    color: AppColors.textPrimary,
+    ),
+    ),
+    IconButton(
+    icon: Icon(Icons.close, color: AppColors.textPrimary),
+    onPressed: () => Navigator.pop(context),
+    ),
+    ],
+    ),
+    const SizedBox(height: 20),
+    TextField(
+    controller: _addressController,
+    focusNode: _addressFocusNode,
+    decoration: InputDecoration(
+    labelText: 'Complete Address*',
+    border: OutlineInputBorder(
+    borderSide: BorderSide(color: AppColors.inputBorder),
+    ),
+    ),
+    maxLines: 3,
+    ),
+    const SizedBox(height: 16),
+    TextField(
+    controller: _landmarkController,
+    focusNode: _landmarkFocusNode,
+    decoration: InputDecoration(
+    labelText: 'Landmark (Optional)',
+    border: OutlineInputBorder(
+    borderSide: BorderSide(color: AppColors.inputBorder),
+    ),
+    ),
+    ),
+    const SizedBox(height: 16),
+    InputDecorator(
+    decoration: InputDecoration(
+    labelText: 'Address Type',
+    border: OutlineInputBorder(
+    borderSide: BorderSide(color: AppColors.inputBorder),
+    ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+    ),
+    child: DropdownButtonHideUnderline(
+    child: DropdownButton<String>(
+    value: _selectedAddressType,
+    isExpanded: true,
+    items: const [
+    DropdownMenuItem(
+    value: 'home',
+    child: Text('Home Address'),
+    ),
+    DropdownMenuItem(
+    value: 'work',
+    child: Text('Work Address'),
+    ),
+    DropdownMenuItem(
+    value: 'other',
+    child: Text('Other Address'),
+    ),
+    ],
+    onChanged: (value) {
+    if (value != null) {
+    setState(() {
+    _selectedAddressType = value;
+  });
+  }
+  },
+    ),
+    ),
+    ),
+    const SizedBox(height: 16),
+    StatefulBuilder(
+    builder: (context, setState) {
+    return Row(
+    children: [
+    Checkbox(
+    value: _isDefaultAddress,
+    onChanged: (value) {
+    setState(() {
+    _isDefaultAddress = value ?? false;
+  });
+  },
+    activeColor: AppColors.primary,
+    ),
+    Text(
+    'Set as default address',
+    style: TextStyle(color: AppColors.textPrimary),
+    ),
+    ],
+    );
+  },
+    ),
+    const SizedBox(height: 24),
+    Row(
+    mainAxisAlignment: MainAxisAlignment.end,
+    children: [
+    TextButton(
+    onPressed: () => Navigator.pop(context),
+    child: Text(
+    'Cancel',
+    style: TextStyle(color: AppColors.primary),
+    ),
+    ),
+    const SizedBox(width: 10),
+    ElevatedButton(
+    style: ElevatedButton.styleFrom(
+    backgroundColor: AppColors.primary,
+    foregroundColor: Colors.white,
+    ),
+    onPressed: _saveAddress,
+    child: const Text('Save Address'),
+    ),
+    ],
+    ),
+    ],
+    ),
+    ),
+    ),
+    );
+  },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isLoading ? 'Hello!' : 'Hello, $userName!',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.location_on,
-                              size: 16, color: AppColors.primary),
-                          const SizedBox(width: 4),
-                          GestureDetector(
-                            onTap: _showAddressBottomSheet,
-                            child: SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.5,
-                              child: Text(
-                                isAddressLoading
-                                    ? 'Loading addresses...'
-                                    : selectedAddress,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: AppColors.secondaryText,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            icon: Icon(Icons.keyboard_arrow_down,
-                                size: 16, color: AppColors.primary),
-                            onPressed: _showAddressBottomSheet,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.notifications_none,
-                        color: AppColors.textPrimary),
-                    onPressed: () {},
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Search Bar
-              TextField(
-                decoration: InputDecoration(
-                  hintText: 'Search for restaurants, cuisines, or dishes',
-                  prefixIcon: Icon(Icons.search, color: AppColors.primary),
-                  filled: true,
-                  fillColor: AppColors.inputBackground,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide(color: AppColors.inputBorder),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Promo Banner
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
+    return GestureDetector(
+      onTap: _dismissKeyboard,
+      behavior: HitTestBehavior.opaque,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Icon(Icons.local_offer, color: AppColors.primary),
-                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            'Get 30% OFF your first order!',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppColors.textPrimary,
+                          Padding(
+                            padding: const EdgeInsets.only(top: 5, bottom: 5, left: 3),
+                            child: isLoading
+                                ? Text(
+                              'Hello!',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            )
+                                : Text.rich(
+                              TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'Welcome, ',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: '$userName 👋',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          Text(
-                            'Use code: WELCOME30',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.secondaryText,
+                          GestureDetector(
+                            onTap: _showAddressBottomSheet,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Icon(Icons.location_on, color: AppColors.primary, size: 20),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          isAddressLoading ? 'Loading your address...' : selectedAddress,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            color: AppColors.secondaryText,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(Icons.keyboard_arrow_down, color: AppColors.primary, size: 20),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: Icon(Icons.chevron_right, color: AppColors.primary),
-                      onPressed: () {},
+                    Stack(
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.notifications_none, size: 28, color: AppColors.textPrimary),
+                          onPressed: () {},
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
-
-              // Categories
-              Text(
-                'Categories',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                const SizedBox(height: 20),
+                TextField(
+                  focusNode: _searchFocusNode,
+                  decoration: InputDecoration(
+                    hintText: 'Search for restaurants, cuisines, or dishes',
+                    prefixIcon: Icon(Icons.search, color: AppColors.primary),
+                    filled: true,
+                    fillColor: AppColors.inputBackground,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: BorderSide(color: AppColors.inputBorder),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 100,
-                child: ListView(
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.local_offer, color: AppColors.primary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Get 30% OFF your first order!',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              'Use code: WELCOME30',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.secondaryText,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.chevron_right, color: AppColors.primary),
+                        onPressed: () {},
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Categories',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 100,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _buildCategory('Sushi', Icons.restaurant),
+                      _buildCategory('Burgers', Icons.fastfood),
+                      _buildCategory('Pizza', Icons.local_pizza),
+                      _buildCategory('Asian', Icons.ramen_dining),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Featured Restaurants',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildRestaurantCard(
+                            'Burger Haven', '15–25 min • \$3.99 delivery', '4.8 (200+)')),
+                    const SizedBox(width: 16),
+                    Expanded(
+                        child: _buildRestaurantCard(
+                            'Popular Pizza Palace', '20–35 min • \$', '4.6 (150+)')),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  children: [
-                    _buildCategory('Sushi', Icons.restaurant),
-                    _buildCategory('Burgers', Icons.fastfood),
-                    _buildCategory('Pizza', Icons.local_pizza),
-                    _buildCategory('Asian', Icons.ramen_dining),
-                  ],
+                  child: Row(
+                    children: [
+                      _buildFilterChip('Under 30 min'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Cuisine'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('★ 4.0+'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Free Delivery'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('New'),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-
-              // Featured Restaurants
-              Text(
-                'Featured Restaurants',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                const SizedBox(height: 16),
+                Text(
+                  'Trending Nearby',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                      child: _buildRestaurantCard(
-                          'Burger Haven', '15–25 min • \$3.99 delivery', '4.8 (200+)')),
-                  const SizedBox(width: 16),
-                  Expanded(
-                      child: _buildRestaurantCard(
-                          'Popular Pizza Palace', '20–35 min • \$', '4.6 (150+)')),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              // Filter Section
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildFilterChip('Under 30 min'),
-                    const SizedBox(width: 8),
-                    _buildFilterChip('Cuisine'),
-                    const SizedBox(width: 8),
-                    _buildFilterChip('★ 4.0+'),
-                    const SizedBox(width: 8),
-                    _buildFilterChip('Free Delivery'),
-                    const SizedBox(width: 8),
-                    _buildFilterChip('New'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Trending Nearby
-              Text(
-                'Trending Nearby',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildTrendingRestaurant(
-                  'Taco Fiesta', 'Mexican • 20–30 min', '4.5 (150+)', '\$2.99'),
-              const SizedBox(height: 12),
-              _buildTrendingRestaurant(
-                  'Sushi Master', 'Japanese • 25–35 min', '4.7 (180+)', '\$3.99'),
-              const SizedBox(height: 12),
-              _buildTrendingRestaurant(
-                  'Pasta Paradise', 'Italian • 15–25 min', '4.6 (120+)', '\$1.99'),
-            ],
+                const SizedBox(height: 12),
+                _buildTrendingRestaurant(
+                    'Taco Fiesta', 'Mexican • 20–30 min', '4.5 (150+)', '\$2.99'),
+                const SizedBox(height: 12),
+                _buildTrendingRestaurant(
+                    'Sushi Master', 'Japanese • 25–35 min', '4.7 (180+)', '\$3.99'),
+                const SizedBox(height: 12),
+                _buildTrendingRestaurant(
+                    'Pasta Paradise', 'Italian • 15–25 min', '4.6 (120+)', '\$1.99'),
+              ],
+            ),
           ),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.secondaryText,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt),
-            label: 'Orders',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart),
-            label: 'Cart',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+        bottomNavigationBar: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.secondaryText,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.receipt),
+              label: 'Orders',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_cart),
+              label: 'Cart',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
