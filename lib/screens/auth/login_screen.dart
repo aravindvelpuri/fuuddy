@@ -59,15 +59,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
         // Add login history record
         await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user!.uid)
             .collection('loginHistory')
             .add({
-          'userId': userCredential.user!.uid,
           'loginTime': FieldValue.serverTimestamp(),
-          'deviceInfo': {
-            'platform': Theme.of(context).platform.toString(),
-            // Add more device info as needed
-          },
-          'ipAddress': 'unknown', // You can implement IP detection later
+          'platform': Theme.of(context).platform.toString(),
+          'ipAddress': 'unknown',
         });
 
         if (!mounted) return;
